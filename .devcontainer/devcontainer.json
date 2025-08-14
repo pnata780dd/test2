@@ -41,5 +41,5 @@
   "remoteUser": "root",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
   "workspaceFolder": "/workspace",
-  "postCreateCommand": "git clone https://github.com/AutomaApp/automa.git /workspace/automa && cd /workspace/automa && npm install -g pnpm && pnpm install && echo \"export default function() { return 'anything-you-want'; };\" > src/utils/getPassKey.js && pnpm build && python3 -m pip install pymongo python-dotenv"
+  "postCreateCommand": "git clone https://github.com/AutomaApp/automa.git /workspace/automa && cd /workspace/automa && npm install -g pnpm && pnpm install && echo \"export default function() { return 'anything-you-want'; };\" > src/utils/getPassKey.js && pnpm build && python3 -m pip install pymongo python-dotenv requests websocket-client pandas openpyxl"
 }
