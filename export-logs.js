@@ -124,14 +124,34 @@ class SimpleAutomaExtractor {
                                             this.log(`✅ Extracted workflow data from ${file}`);
                                         }
                                     } else {
-                                        // Try reading as text
+                                        // Try reading as text - be more permissive for .log files
                                         try {
                                             content = await fs.readFile(filePath, 'utf8');
-                                            if (content.includes('workflow') || content.includes('trigger') || content.includes('typing')) {
-                                                // Parse as potential log data
-                                                const extracted = this.extractFromText(content, file);
-                                                workflowData.push(...extracted);
-                                                this.log(`✅ Extracted log data from ${file}`);
+                                            
+                                            // For .log files, try to extract even if partially readable
+                                            if (file.endsWith('.log') || content.includes('workflow') || content.includes('trigger') || content.includes('typing')) {
+                                                this.log(`📄 Processing log file: ${file} (${stats.size} bytes)`);
+                                                
+                                                // Split content and process line by line for better filtering
+                                                const lines = content.split('\n');
+                                                let validLines = [];
+                                                
+                                                for (const line of lines) {
+                                                    const trimmedLine = line.trim();
+                                                    if (trimmedLine.length > 0 && this.isValidLogEntry(trimmedLine)) {
+                                                        validLines.push(trimmedLine);
+                                                    }
+                                                }
+                                                
+                                                if (validLines.length > 0) {
+                                                    // Create clean content from valid lines
+                                                    const cleanContent = validLines.join('\n');
+                                                    const extracted = this.extractFromText(cleanContent, file);
+                                                    workflowData.push(...extracted);
+                                                    this.log(`✅ Extracted ${validLines.length} valid log entries from ${file}`);
+                                                } else {
+                                                    this.log(`⚠️ No valid log entries found in ${file}`);
+                                                }
                                             }
                                         } catch (textError) {
                                             // If text reading fails, might be binary database
@@ -144,7 +164,7 @@ class SimpleAutomaExtractor {
                                             if (strings.length > 0) {
                                                 const extracted = this.extractFromStrings(strings, file);
                                                 workflowData.push(...extracted);
-                                                this.log(`✅ Extracted strings from binary file ${file}`);
+                                                this.log(`✅ Extracted ${strings.length} strings from binary file ${file}`);
                                             }
                                         }
                                     }
@@ -172,6 +192,65 @@ class SimpleAutomaExtractor {
                dataStr.includes('automa');
     }
 
+    isReadableText(text) {
+        if (!text || typeof text !== 'string') return false;
+        
+        // For small strings, be more lenient
+        if (text.length < 50) {
+            // Just check for excessive null characters
+            const nullCount = (text.match(/\u0000/g) || []).length;
+            return nullCount < text.length * 0.5; // Less than 50% null characters
+        }
+        
+        // Check for null characters or other binary indicators
+        const nullCount = (text.match(/\u0000/g) || []).length;
+        const nonPrintableCount = (text.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g) || []).length;
+        
+        // Check if text contains mostly readable characters
+        const readableChars = text.replace(/[^\x20-\x7E\n\r\t]/g, '').length;
+        const totalChars = text.length;
+        
+        if (totalChars === 0) return false;
+        
+        // More lenient for log files - allow more special characters
+        const readableRatio = readableChars / totalChars;
+        const nullRatio = nullCount / totalChars;
+        
+        // Must be at least 40% readable characters and less than 30% null characters
+        return readableRatio > 0.4 && nullRatio < 0.3;
+    }
+
+    isValidLogEntry(text) {
+        if (!text || typeof text !== 'string' || text.trim().length === 0) return false;
+        
+        // More flexible patterns for Automa logs
+        const logPatterns = [
+            /\d{1,2}:\d{2}:\d{2}/,  // Time pattern (23:05:31)
+            /trigger/i,
+            /click/i,
+            /tab/i,
+            /type/i,
+            /typing/i,
+            /navigate/i,
+            /wait/i,
+            /scroll/i,
+            /workflow/i,
+            /success/i,
+            /failed/i,
+            /error/i,
+            /completed/i,
+            /started/i
+        ];
+        
+        // Check if text contains at least one log-like pattern
+        const hasLogPattern = logPatterns.some(pattern => pattern.test(text));
+        
+        // Also check for basic readability
+        const hasBasicText = /[a-zA-Z]{3,}/.test(text); // At least one word with 3+ letters
+        
+        return hasLogPattern && hasBasicText;
+    }
+
     extractFromJSON(data) {
         const results = [];
         
@@ -186,10 +265,13 @@ class SimpleAutomaExtractor {
                             key.toLowerCase().includes('log') ||
                             key.toLowerCase().includes('name')) {
                             
-                            if (typeof obj[key] === 'string' && obj[key].length > 0) {
+                            if (typeof obj[key] === 'string' && 
+                                obj[key].length > 0 && 
+                                this.isValidLogEntry(obj[key])) {
+                                
                                 results.push({
                                     workflow: key.includes('name') ? obj[key] : parentKey || 'Unknown',
-                                    log: typeof obj[key] === 'string' ? obj[key] : JSON.stringify(obj[key])
+                                    log: this.makeHumanReadable(obj[key])
                                 });
                             }
                         }
@@ -205,8 +287,8 @@ class SimpleAutomaExtractor {
 
     extractFromText(content, filename) {
         const results = [];
-        const lines = content.split('\n');
         
+        const lines = content.split('\n');
         let currentWorkflow = filename.replace(/\.[^/.]+$/, ""); // Remove extension
         
         for (const line of lines) {
@@ -217,24 +299,77 @@ class SimpleAutomaExtractor {
             if (trimmedLine.toLowerCase().includes('workflow') && trimmedLine.includes(':')) {
                 const parts = trimmedLine.split(':');
                 if (parts.length > 1) {
-                    currentWorkflow = parts[1].trim();
+                    const potentialName = parts[1].trim();
+                    if (this.isReadableText(potentialName)) {
+                        currentWorkflow = potentialName;
+                    }
                 }
             }
             
-            // Look for log entries
-            if (trimmedLine.includes('Trigger') || 
-                trimmedLine.includes('Click') || 
-                trimmedLine.includes('New tab') ||
-                trimmedLine.includes('typing')) {
-                
+            // Look for log entries - be more permissive
+            if (this.isValidLogEntry(trimmedLine)) {
                 results.push({
                     workflow: currentWorkflow,
-                    log: trimmedLine
+                    log: this.makeHumanReadable(trimmedLine)
                 });
             }
         }
         
         return results;
+    }
+
+    makeHumanReadable(logEntry) {
+        let readable = logEntry;
+        
+        // Remove technical symbols and clean up
+        readable = readable.replace(/^\d{2}:\d{2}:\d{2}\s*\(\d+s?\)\s*/, ''); // Remove timestamp (23:05:31 (0s))
+        readable = readable.replace(/[✓❌⚠️]/g, ''); // Remove status symbols
+        readable = readable.trim();
+        
+        // Convert actions to human readable format
+        const actionMap = {
+            'Trigger': 'Started workflow',
+            'New tab': 'Opened new browser tab',
+            'Click element': 'Clicked on page element',
+            'Type text': 'Typed text',
+            'typing': 'Typed text',
+            'Navigate': 'Navigated to page',
+            'Wait': 'Waited',
+            'Scroll': 'Scrolled page',
+            'Take screenshot': 'Took screenshot',
+            'Close tab': 'Closed browser tab',
+            'Reload': 'Refreshed page',
+            'Go back': 'Went back in browser',
+            'Go forward': 'Went forward in browser'
+        };
+        
+        // Replace known actions
+        for (const [technical, human] of Object.entries(actionMap)) {
+            if (readable.toLowerCase().includes(technical.toLowerCase())) {
+                readable = readable.replace(new RegExp(technical, 'gi'), human);
+                break;
+            }
+        }
+        
+        // Clean up any remaining symbols
+        readable = readable.replace(/^\s*[^\w\s]\s*/, ''); // Remove leading symbols
+        readable = readable.trim();
+        
+        // Capitalize first letter
+        if (readable.length > 0) {
+            readable = readable.charAt(0).toUpperCase() + readable.slice(1);
+        }
+        
+        // Handle error messages
+        if (logEntry.includes('❌') || logEntry.toLowerCase().includes('error') || logEntry.toLowerCase().includes('failed')) {
+            readable = 'Failed: ' + readable;
+        } else if (logEntry.includes('✓')) {
+            readable = 'Success: ' + readable;
+        } else if (logEntry.includes('⚠️')) {
+            readable = 'Warning: ' + readable;
+        }
+        
+        return readable || logEntry; // Fallback to original if something goes wrong
     }
 
     extractStringsFromBuffer(buffer) {
@@ -248,7 +383,7 @@ class SimpleAutomaExtractor {
             if (byte >= 32 && byte <= 126) {
                 currentString += String.fromCharCode(byte);
             } else {
-                if (currentString.length > 3) { // Only keep strings longer than 3 chars
+                if (currentString.length > 10 && this.isReadableText(currentString)) { // Only keep longer readable strings
                     strings.push(currentString);
                 }
                 currentString = '';
@@ -256,16 +391,12 @@ class SimpleAutomaExtractor {
         }
         
         // Add the last string if it exists
-        if (currentString.length > 3) {
+        if (currentString.length > 10 && this.isReadableText(currentString)) {
             strings.push(currentString);
         }
         
-        return strings.filter(s => 
-            s.includes('workflow') || 
-            s.includes('typing') || 
-            s.includes('trigger') ||
-            s.includes('click')
-        );
+        // Only return strings that look like actual logs
+        return strings.filter(s => this.isValidLogEntry(s));
     }
 
     extractFromStrings(strings, filename) {
@@ -273,19 +404,22 @@ class SimpleAutomaExtractor {
         let currentWorkflow = filename.replace(/\.[^/.]+$/, "");
         
         for (const str of strings) {
-            if (str.toLowerCase().includes('workflow') && str.includes('_')) {
-                // Might be a workflow name
-                currentWorkflow = str;
+            // Skip corrupted strings
+            if (!this.isReadableText(str) || !this.isValidLogEntry(str)) {
+                continue;
             }
             
-            if (str.includes('Trigger') || 
-                str.includes('Click') || 
-                str.includes('typing') ||
-                str.includes('New tab')) {
-                
+            if (str.toLowerCase().includes('workflow') && str.includes('_')) {
+                // Might be a workflow name
+                if (this.isReadableText(str)) {
+                    currentWorkflow = str;
+                }
+            }
+            
+            if (this.isValidLogEntry(str)) {
                 results.push({
                     workflow: currentWorkflow,
-                    log: str
+                    log: this.makeHumanReadable(str)
                 });
             }
         }
@@ -381,6 +515,11 @@ class SimpleAutomaExtractor {
             if (savedFiles) {
                 this.log(`💾 Saved to ${savedFiles.length} CSV file(s):`);
                 savedFiles.forEach(file => this.log(`   - ${path.basename(file)}`));
+                this.log('\n📄 Example of human-readable format:');
+                this.log('   workflow_name,log_entry');
+                this.log('   typing_five_5,"Success: Started workflow"');
+                this.log('   typing_five_5,"Success: Opened new browser tab"');
+                this.log('   typing_five_5,"Failed: Clicked on page element"');
             }
             
             return savedFiles;
