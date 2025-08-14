@@ -1,0 +1,2 @@
+workflow_id,name,description,created_at,updated_at,is_disabled,version,category,author,website,node_count,connection_count,node_types,complexity_score,raw_json_size,has_settings,has_trigger
+test.automa,typing_five_5,"Generated workflow for: ""Happy to lend a hand! If you can share the assign...",2025-08-14 18:09:22,2025-08-14 18:09:22,False,1.29.11,,,,0,0,,0,6546,True,False

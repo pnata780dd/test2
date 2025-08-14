@@ -1,0 +1,374 @@
+{
+  "export_timestamp": "2025-08-14T18:21:53.545964",
+  "export_version": "1.0",
+  "workflow_count": 1,
+  "workflows": {
+    "test.automa": {
+      "createdAt": 1755194962126,
+      "description": "Generated workflow for: \"Happy to lend a hand! If you can share the assign...",
+      "drawflow": {
+        "edges": [
+          {
+            "data": {},
+            "id": "vueflow__edge-gg8f6b5gg8f6b5-output-1-7f4pfek7f4pfek-input-1",
+            "label": "",
+            "markerEnd": "arrowclosed",
+            "selectable": true,
+            "source": "gg8f6b5",
+            "sourceHandle": "gg8f6b5-output-1",
+            "sourceX": 13.846417892305624,
+            "sourceY": 179.74376953622175,
+            "target": "7f4pfek",
+            "targetHandle": "7f4pfek-input-1",
+            "targetX": 276.0000392019986,
+            "targetY": 323.3975636840113,
+            "type": "custom",
+            "updatable": true
+          },
+          {
+            "data": {},
+            "id": "vueflow__edge-7f4pfek7f4pfek-output-1-28t34wl28t34wl-input-1",
+            "label": "",
+            "markerEnd": "arrowclosed",
+            "selectable": true,
+            "source": "7f4pfek",
+            "sourceHandle": "7f4pfek-output-1",
+            "sourceX": 580.0002640461518,
+            "sourceY": 323.3975636840113,
+            "target": "28t34wl",
+            "targetHandle": "28t34wl-input-1",
+            "targetX": 942.9231161250754,
+            "targetY": 595.8976082924149,
+            "type": "custom",
+            "updatable": true
+          },
+          {
+            "class": "connected-edges",
+            "data": {},
+            "id": "vueflow__edge-d2kb6g5d2kb6g5-output-1-gg8f6b5gg8f6b5-input-1",
+            "label": "",
+            "markerEnd": "arrowclosed",
+            "selectable": true,
+            "source": "d2kb6g5",
+            "sourceHandle": "d2kb6g5-output-1",
+            "sourceX": -382.04080628971985,
+            "sourceY": 201.17335997976969,
+            "target": "gg8f6b5",
+            "targetHandle": "gg8f6b5-input-1",
+            "targetX": -290.1538069518475,
+            "targetY": 179.74376953622175,
+            "type": "custom",
+            "updatable": true
+          }
+        ],
+        "nodes": [
+          {
+            "data": {
+              "blocks": [
+                {
+                  "data": {
+                    "active": true,
+                    "customUserAgent": false,
+                    "description": "",
+                    "disableBlock": false,
+                    "inGroup": false,
+                    "tabZoom": 1,
+                    "updatePrevTab": false,
+                    "url": "https://x.com/Cristiano/status/1953566132977512486",
+                    "userAgent": "",
+                    "waitTabLoaded": false
+                  },
+                  "id": "new-tab",
+                  "itemId": "_qCaE"
+                },
+                {
+                  "data": {
+                    "description": "",
+                    "disableBlock": false,
+                    "findBy": "cssSelector",
+                    "markEl": false,
+                    "multiple": false,
+                    "onError": {
+                      "dataToInsert": [],
+                      "enable": true,
+                      "insertData": false,
+                      "retry": false,
+                      "retryInterval": 2,
+                      "retryTimes": 1,
+                      "toDo": "continue"
+                    },
+                    "selector": "div.public-DraftStyleDefault-block",
+                    "settings": {
+                      "blockTimeout": 0,
+                      "debugMode": false
+                    },
+                    "waitForSelector": true,
+                    "waitSelectorTimeout": 15000
+                  },
+                  "id": "event-click",
+                  "itemId": "UEITS"
+                }
+              ],
+              "disableBlock": false,
+              "name": "one"
+            },
+            "id": "gg8f6b5",
+            "initialized": false,
+            "label": "blocks-group",
+            "position": {
+              "x": -266.15384615384613,
+              "y": 63.07692307692312
+            },
+            "type": "BlockGroup"
+          },
+          {
+            "data": {
+              "blocks": [
+                {
+                  "data": {
+                    "description": "",
+                    "disableBlock": false,
+                    "findBy": "cssSelector",
+                    "markEl": false,
+                    "multiple": false,
+                    "selector": "button[data-testid=\"tweetButtonInline\"]",
+                    "waitForSelector": true,
+                    "waitSelectorTimeout": 20000
+                  },
+                  "id": "event-click",
+                  "itemId": "NpyBu"
+                },
+                {
+                  "data": {
+                    "description": "",
+                    "disableBlock": false,
+                    "findBy": "cssSelector",
+                    "markEl": false,
+                    "multiple": false,
+                    "selector": "[data-testid=\"like\"] .css-1jxf684 > .css-1jxf684",
+                    "waitForSelector": true,
+                    "waitSelectorTimeout": 20000
+                  },
+                  "id": "event-click",
+                  "itemId": "kg4d2"
+                },
+                {
+                  "data": {
+                    "description": "",
+                    "disableBlock": false,
+                    "findBy": "cssSelector",
+                    "markEl": false,
+                    "multiple": false,
+                    "selector": "div.r-1e084wi",
+                    "waitForSelector": true,
+                    "waitSelectorTimeout": 20000
+                  },
+                  "id": "event-click",
+                  "itemId": "lDZk_"
+                },
+                {
+                  "data": {
+                    "description": "",
+                    "disableBlock": false,
+                    "findBy": "cssSelector",
+                    "markEl": false,
+                    "multiple": false,
+                    "selector": "[data-testid=\"retweet\"] .css-1jxf684 > .css-1jxf684",
+                    "waitForSelector": true,
+                    "waitSelectorTimeout": 20000
+                  },
+                  "id": "event-click",
+                  "itemId": "H1EuL"
+                }
+              ],
+              "disableBlock": false,
+              "name": "kags"
+            },
+            "id": "28t34wl",
+            "initialized": false,
+            "label": "blocks-group",
+            "position": {
+              "x": 966.9230769230768,
+              "y": 439.2307692307693
+            },
+            "type": "BlockGroup"
+          },
+          {
+            "data": {
+              "blocks": [
+                {
+                  "data": {
+                    "action": "press-key",
+                    "description": "Type the message",
+                    "disableBlock": false,
+                    "keys": "REPLY_PLACEHOLDER",
+                    "keysToPress": "",
+                    "onError": {
+                      "dataToInsert": [],
+                      "enable": true,
+                      "insertData": false,
+                      "retry": false,
+                      "retryInterval": 2,
+                      "retryTimes": 1,
+                      "toDo": "continue"
+                    },
+                    "pressTime": "20000",
+                    "selector": "",
+                    "settings": {
+                      "blockTimeout": 0,
+                      "debugMode": false
+                    }
+                  },
+                  "id": "press-key",
+                  "itemId": "message-placeholder"
+                }
+              ],
+              "description": "Group for typing messages",
+              "disableBlock": false,
+              "name": "typing_group"
+            },
+            "id": "7f4pfek",
+            "initialized": false,
+            "label": "blocks-group",
+            "position": {
+              "x": 300,
+              "y": 219.23076923076928
+            },
+            "type": "BlockGroup"
+          },
+          {
+            "data": {
+              "activeInInput": false,
+              "contextMenuName": "",
+              "contextTypes": [],
+              "date": "",
+              "days": [],
+              "delay": 5,
+              "description": "",
+              "disableBlock": false,
+              "interval": 60,
+              "isUrlRegex": false,
+              "observeElement": {
+                "baseElOptions": {
+                  "attributeFilter": [],
+                  "attributes": false,
+                  "characterData": false,
+                  "childList": true,
+                  "subtree": false
+                },
+                "baseSelector": "",
+                "matchPattern": "",
+                "selector": "",
+                "targetOptions": {
+                  "attributeFilter": [],
+                  "attributes": false,
+                  "characterData": false,
+                  "childList": true,
+                  "subtree": false
+                }
+              },
+              "parameters": [],
+              "preferParamsInTab": false,
+              "shortcut": "",
+              "time": "00:00",
+              "triggers": [
+                {
+                  "data": {
+                    "activeInInput": false,
+                    "contextMenuName": "",
+                    "contextTypes": [],
+                    "date": "",
+                    "days": [],
+                    "delay": 5,
+                    "description": "",
+                    "disableBlock": false,
+                    "interval": 60,
+                    "isUrlRegex": false,
+                    "observeElement": {
+                      "baseElOptions": {
+                        "attributeFilter": [],
+                        "attributes": false,
+                        "characterData": false,
+                        "childList": true,
+                        "subtree": false
+                      },
+                      "baseSelector": "",
+                      "matchPattern": "",
+                      "selector": "",
+                      "targetOptions": {
+                        "attributeFilter": [],
+                        "attributes": false,
+                        "characterData": false,
+                        "childList": true,
+                        "subtree": false
+                      }
+                    },
+                    "parameters": [],
+                    "preferParamsInTab": false,
+                    "shortcut": "",
+                    "time": "00:00",
+                    "type": "manual",
+                    "url": ""
+                  },
+                  "id": "nd8S0",
+                  "type": "manual"
+                },
+                {
+                  "data": null,
+                  "id": "QngQr",
+                  "type": "on-startup"
+                }
+              ],
+              "type": "manual",
+              "url": ""
+            },
+            "id": "d2kb6g5",
+            "initialized": false,
+            "label": "trigger",
+            "position": {
+              "x": -598.0411169355232,
+              "y": 165.17326086790632
+            },
+            "type": "BlockBasic"
+          }
+        ],
+        "position": [
+          331,
+          174
+        ],
+        "viewport": {
+          "x": 331,
+          "y": 174,
+          "zoom": 0.3511464246406336
+        },
+        "zoom": 0.3511464246406336
+      },
+      "extVersion": "1.29.12",
+      "globalData": "{\n\t\"key\": \"value\"\n}",
+      "icon": "riGlobalLine",
+      "id": "test.automa",
+      "includedWorkflows": {},
+      "isDisabled": false,
+      "name": "typing_five_5",
+      "settings": {
+        "aipowerToken": "",
+        "blockDelay": 0,
+        "debugMode": false,
+        "defaultColumnName": "column",
+        "execContext": "popup",
+        "executedBlockOnWeb": false,
+        "inputAutocomplete": true,
+        "insertDefaultColumn": false,
+        "notification": true,
+        "onError": "stop-workflow",
+        "publicId": "",
+        "restartTimes": 3,
+        "reuseLastState": false,
+        "saveLog": true
+      },
+      "table": [],
+      "updatedAt": 1755194962126,
+      "version": "1.29.11"
+    }
+  }
+}
