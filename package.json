@@ -1,0 +1,18 @@
+{
+  "name": "workspace",
+  "version": "1.0.0",
+  "main": "export-logs-node.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "dexie": "^4.0.11",
+    "dexie-export-import": "^4.1.4",
+    "fs-extra": "^11.3.1",
+    "puppeteer": "^24.16.2"
+  }
+}

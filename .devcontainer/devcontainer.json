@@ -32,14 +32,8 @@
       ]
     }
   },
-  "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {
-      "version": "latest",
-      "moby": true
-    }
-  },
   "remoteUser": "root",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
   "workspaceFolder": "/workspace",
-  "postCreateCommand": "git clone https://github.com/AutomaApp/automa.git /workspace/automa && cd /workspace/automa && npm install -g pnpm && pnpm install && echo \"export default function() { return 'anything-you-want'; };\" > src/utils/getPassKey.js && pnpm build && python3 -m pip install pymongo python-dotenv requests websocket-client pandas openpyxl"
+  "postCreateCommand": "bash -c 'set -e && if [ ! -d /workspace/automa ]; then echo \"Cloning Automa...\" && git clone https://github.com/AutomaApp/automa.git /workspace/automa; fi && echo \"Installing pnpm globally...\" && npm install -g pnpm && cd /workspace/automa && echo \"Installing Automa dependencies...\" && pnpm install && echo \"Creating getPassKey.js...\" && echo \"export default function() { return \\\"anything-you-want\\\"; };\" > src/utils/getPassKey.js && echo \"Building Automa...\" && pnpm build && echo \"Installing Python packages...\" && python3 -m pip install pymongo python-dotenv requests websocket-client pandas openpyxl && echo \"Setting up workspace npm...\" && cd /workspace && npm init -y && npm install dexie dexie-export-import puppeteer fs-extra && echo \"Setup completed successfully!\"'"
 }

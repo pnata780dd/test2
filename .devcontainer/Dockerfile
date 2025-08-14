@@ -35,8 +35,14 @@ RUN wget -O /tmp/chrome.deb \
 # Install pnpm globally
 RUN npm install -g pnpm
 
+# Install additional Node.js packages for database operations
+RUN npm install -g dexie puppeteer fs-extra
+
 # Create Chrome profile directory
 RUN mkdir -p /workspace/chrome_profile && chmod 777 /workspace/chrome_profile
+
+# Create scripts directory
+RUN mkdir -p /workspace/scripts && chmod 777 /workspace/scripts
 
 # Initialize Git LFS globally
 RUN git lfs install --system
