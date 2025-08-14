@@ -1,0 +1,45 @@
+{
+  "name": "Automa Chrome GUI Environment",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "runArgs": [
+    "--cap-add=SYS_ADMIN",
+    "--ipc=host",
+    "--shm-size=2g",
+    "--security-opt=seccomp=unconfined"
+  ],
+  "forwardPorts": [6080, 9222],
+  "portsAttributes": {
+    "6080": {
+      "label": "noVNC GUI Access",
+      "onAutoForward": "notify"
+    },
+    "9222": {
+      "label": "Chrome Remote Debugging",
+      "onAutoForward": "notify"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "ms-azuretools.vscode-docker",
+        "ms-python.python",
+        "Vue.volar",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "moby": true
+    }
+  },
+  "remoteUser": "root",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "workspaceFolder": "/workspace",
+  "postCreateCommand": "git clone https://github.com/AutomaApp/automa.git /workspace/automa && cd /workspace/automa && npm install -g pnpm && pnpm install && echo \"export default function() { return 'anything-you-want'; };\" > src/utils/getPassKey.js && pnpm build && python3 -m pip install pymongo python-dotenv"
+}

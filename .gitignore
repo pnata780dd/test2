@@ -1,0 +1,47 @@
+# Node.js and npm/pnpm
+node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-lock.yaml
+package-lock.json
+
+# Build outputs
+automa/build/
+dist/
+
+# Chrome profile and runtime data
+chrome_profile/
+SingletonLock
+SingletonSocket
+SingletonCookie
+
+# Temporary and log files
+/tmp/*.log
+/tmp/.X99-lock
+/tmp/.X11-unix/
+*.log
+
+# Dependency caches
+.pnpm-store/
+.npm/
+.yarn/
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Python-related files
+__pycache__/
+*.py[cod]
+*.pyc
+*.egg-info/
+venv/
+.env
+
+# System and miscellaneous
+*.bak
+*.tmp
+*.cache
