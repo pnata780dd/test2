@@ -10,7 +10,10 @@ ENV LANG=en_US.UTF-8 \
     LANGUAGE=en_US:en \
     LC_ALL=en_US.UTF-8
 
-# Install system dependencies
+# Install Git LFS repository
+RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
+
+# Install system dependencies including Git LFS
 RUN apt-get install -y \
     ca-certificates fonts-liberation libappindicator3-1 libasound2 \
     libatk-bridge2.0-0 libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 \
@@ -20,7 +23,7 @@ RUN apt-get install -y \
     libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 \
     libxss1 libxtst6 lsb-release wget xdg-utils xvfb fluxbox \
     x11vnc novnc websockify dbus-x11 x11-apps xterm net-tools \
-    git build-essential curl \
+    git git-lfs build-essential curl \
     python3 python3-pip && \
     rm -rf /var/lib/apt/lists/*
 
@@ -34,6 +37,9 @@ RUN npm install -g pnpm
 
 # Create Chrome profile directory
 RUN mkdir -p /workspace/chrome_profile && chmod 777 /workspace/chrome_profile
+
+# Initialize Git LFS globally
+RUN git lfs install --system
 
 # Start container in /workspace
 WORKDIR /workspace
