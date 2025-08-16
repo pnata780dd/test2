@@ -1,11 +1,11 @@
-// Simple Automa CSV Log Extractor
-// Extracts workflow name and logs into a simple CSV file
-// Run with: node simple-automa-extractor.js
+// Improved Automa LevelDB Log Extractor
+// Handles binary LevelDB data more intelligently
+// Run with: node improved-leveldb-extractor.js
 
 const fs = require('fs-extra');
 const path = require('path');
 
-class SimpleAutomaExtractor {
+class ImprovedLevelDBExtractor {
     constructor() {
         this.outputDir = '/workspace/automa-exports';
     }
@@ -54,26 +54,10 @@ class SimpleAutomaExtractor {
                 this.log(`📂 IndexedDB contents: ${contents.join(', ')}`);
                 
                 for (const item of contents) {
-                    // Look for Automa extension or any extension that might contain workflow data
-                    if (item.startsWith('chrome-extension_') && 
-                        (item.includes('infppggnoaenmfagbfknfkancpbljcca') || // Automa ID
-                         item.toLowerCase().includes('automa') ||
-                         contents.length <= 5)) { // If few extensions, check all
-                        
+                    if (item.startsWith('chrome-extension_') && item.endsWith('.indexeddb.leveldb')) {
                         const extensionDir = path.join(idbDir, item);
                         automaDirs.push(extensionDir);
-                        this.log(`🎯 Found potential Automa extension: ${item}`);
-                    }
-                }
-                
-                // If no specific match, include all extensions for analysis
-                if (automaDirs.length === 0) {
-                    for (const item of contents) {
-                        if (item.startsWith('chrome-extension_')) {
-                            const extensionDir = path.join(idbDir, item);
-                            automaDirs.push(extensionDir);
-                            this.log(`📊 Including extension for analysis: ${item}`);
-                        }
+                        this.log(`🎯 Found extension database: ${item}`);
                     }
                 }
             } catch (error) {
@@ -84,8 +68,226 @@ class SimpleAutomaExtractor {
         return automaDirs;
     }
 
+    // Enhanced string extraction from binary data
+    extractCleanStrings(buffer) {
+        const strings = [];
+        let currentString = '';
+        const minStringLength = 3; // Minimum meaningful string length
+        
+        for (let i = 0; i < buffer.length; i++) {
+            const byte = buffer[i];
+            
+            // Check for printable ASCII characters (including extended)
+            if ((byte >= 32 && byte <= 126) || byte === 9 || byte === 10 || byte === 13) {
+                currentString += String.fromCharCode(byte);
+            } else {
+                // End of string - process it if it's long enough
+                if (currentString.length >= minStringLength) {
+                    const cleaned = this.cleanExtractedString(currentString);
+                    if (cleaned && this.isValidLogData(cleaned)) {
+                        strings.push(cleaned);
+                    }
+                }
+                currentString = '';
+            }
+        }
+        
+        // Don't forget the last string
+        if (currentString.length >= minStringLength) {
+            const cleaned = this.cleanExtractedString(currentString);
+            if (cleaned && this.isValidLogData(cleaned)) {
+                strings.push(cleaned);
+            }
+        }
+        
+        return strings;
+    }
+
+    cleanExtractedString(str) {
+        if (!str) return null;
+        
+        // Remove common LevelDB artifacts
+        let cleaned = str
+            .replace(/\x00+/g, ' ') // Replace null characters with spaces
+            .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/g, '') // Remove non-printable chars
+            .replace(/\s+/g, ' ') // Normalize whitespace
+            .trim();
+        
+        // Remove obvious binary artifacts
+        cleaned = cleaned
+            .replace(/^[^a-zA-Z0-9]*/, '') // Remove leading junk
+            .replace(/[^a-zA-Z0-9]*$/, '') // Remove trailing junk
+            .trim();
+        
+        return cleaned.length > 2 ? cleaned : null;
+    }
+
+    isValidLogData(str) {
+        if (!str || str.length < 3) return false;
+        
+        // Check for Automa-specific terms
+        const automaTerms = [
+            'trigger', 'click', 'type', 'typing', 'navigate', 'wait', 'scroll',
+            'workflow', 'tab', 'element', 'success', 'failed', 'error',
+            'started', 'completed', 'new tab', 'close', 'reload',
+            'typing_five', 'logId', 'workflowId', 'status', 'message'
+        ];
+        
+        const lowerStr = str.toLowerCase();
+        const hasAutomaTerms = automaTerms.some(term => lowerStr.includes(term));
+        
+        // Check for time patterns
+        const hasTimePattern = /\d{1,2}:\d{2}:\d{2}/.test(str);
+        
+        // Check for general log patterns
+        const hasLogPattern = /\b(success|failed|error|warning|info|debug)\b/i.test(str);
+        
+        // Check for JSON-like structures
+        const hasJSONLike = str.includes('{') || str.includes('"') || str.includes(':');
+        
+        // Must have at least some alphabetic content
+        const hasAlphabetic = /[a-zA-Z]{3,}/.test(str);
+        
+        return hasAlphabetic && (hasAutomaTerms || hasTimePattern || hasLogPattern || hasJSONLike);
+    }
+
+    // Try to extract structured data from strings
+    extractStructuredData(strings) {
+        const structuredData = [];
+        
+        for (const str of strings) {
+            // Try to parse as JSON first
+            if (str.includes('{') && str.includes('}')) {
+                try {
+                    // Find JSON-like substrings
+                    const jsonMatches = str.match(/\{[^{}]*\}/g);
+                    if (jsonMatches) {
+                        for (const match of jsonMatches) {
+                            try {
+                                const parsed = JSON.parse(match);
+                                if (this.containsWorkflowData(parsed)) {
+                                    structuredData.push({
+                                        type: 'json',
+                                        data: parsed,
+                                        raw: match
+                                    });
+                                }
+                            } catch (e) {
+                                // Not valid JSON, continue
+                            }
+                        }
+                    }
+                } catch (e) {
+                    // Not JSON, treat as text
+                }
+            }
+            
+            // Extract workflow names and actions
+            const workflowMatch = str.match(/typing[_\w]*|workflow[_\w]*/i);
+            const actionMatch = str.match(/trigger|click|type|navigate|wait|scroll|tab|element/i);
+            const statusMatch = str.match(/success|failed|error|completed|started/i);
+            const timeMatch = str.match(/\d{1,2}:\d{2}:\d{2}/);
+            
+            if (workflowMatch || actionMatch || statusMatch || timeMatch) {
+                structuredData.push({
+                    type: 'log_entry',
+                    workflow: workflowMatch ? workflowMatch[0] : 'Unknown',
+                    action: actionMatch ? actionMatch[0] : '',
+                    status: statusMatch ? statusMatch[0] : '',
+                    time: timeMatch ? timeMatch[0] : '',
+                    raw: str
+                });
+            }
+        }
+        
+        return structuredData;
+    }
+
+    containsWorkflowData(data) {
+        const dataStr = JSON.stringify(data).toLowerCase();
+        return dataStr.includes('workflow') || 
+               dataStr.includes('trigger') || 
+               dataStr.includes('typing') ||
+               dataStr.includes('logid') ||
+               dataStr.includes('workflowid');
+    }
+
+    // Convert structured data to human-readable format
+    convertToHumanReadable(structuredData) {
+        const readableEntries = [];
+        
+        for (const entry of structuredData) {
+            let readable = '';
+            let workflow = 'Unknown';
+            
+            if (entry.type === 'json' && entry.data) {
+                // Handle JSON data
+                if (entry.data.name) workflow = entry.data.name;
+                if (entry.data.workflowId) workflow = entry.data.workflowId;
+                if (entry.data.message) readable = entry.data.message;
+                if (entry.data.status) readable += ` (${entry.data.status})`;
+            } else if (entry.type === 'log_entry') {
+                // Handle log entries
+                workflow = entry.workflow || 'Unknown';
+                
+                const parts = [];
+                if (entry.time) parts.push(`at ${entry.time}`);
+                if (entry.action) parts.push(this.humanizeAction(entry.action));
+                if (entry.status) parts.push(`- ${entry.status}`);
+                
+                readable = parts.join(' ') || entry.raw;
+            }
+            
+            if (readable && readable.length > 0) {
+                readableEntries.push({
+                    workflow: this.cleanWorkflowName(workflow),
+                    log: this.cleanLogEntry(readable)
+                });
+            }
+        }
+        
+        return readableEntries;
+    }
+
+    humanizeAction(action) {
+        const actionMap = {
+            'trigger': 'Started workflow',
+            'click': 'Clicked element',
+            'type': 'Typed text',
+            'typing': 'Typed text',
+            'navigate': 'Navigated to page',
+            'wait': 'Waited',
+            'scroll': 'Scrolled page',
+            'tab': 'Opened tab',
+            'element': 'Interacted with element'
+        };
+        
+        return actionMap[action.toLowerCase()] || action;
+    }
+
+    cleanWorkflowName(name) {
+        if (!name || name === 'Unknown') return 'Unknown Workflow';
+        
+        // Clean up workflow names
+        return name
+            .replace(/[_-]/g, ' ')
+            .replace(/\b\w/g, l => l.toUpperCase())
+            .trim();
+    }
+
+    cleanLogEntry(entry) {
+        if (!entry) return '';
+        
+        // Remove technical artifacts and clean up
+        return entry
+            .replace(/^\d+\s*/, '') // Remove leading numbers
+            .replace(/\s+/g, ' ') // Normalize whitespace
+            .trim()
+            .replace(/^./, c => c.toUpperCase()); // Capitalize first letter
+    }
+
     async extractWorkflowData(automaDirs) {
-        const workflowData = [];
+        const allStructuredData = [];
         
         for (const automaDir of automaDirs) {
             try {
@@ -99,78 +301,37 @@ class SimpleAutomaExtractor {
                         const filePath = path.join(automaDir, file);
                         const stats = await fs.stat(filePath);
                         
-                        // Look for database files or log files
+                        // Focus on log files and database files
                         if (stats.isFile() && (
-                            file.includes('log') || 
-                            file.includes('workflow') ||
-                            file.includes('.db') ||
-                            file.includes('.json') ||
-                            stats.size > 1024 // Larger files might contain data
+                            file.endsWith('.log') || 
+                            file.endsWith('.ldb') ||
+                            file === 'CURRENT' ||
+                            file === 'MANIFEST-000001'
                         )) {
                             
                             try {
-                                // Try to read as text first
-                                if (stats.size < 1024 * 1024) { // Less than 1MB
-                                    let content = '';
+                                this.log(`📄 Processing: ${file} (${stats.size} bytes)`);
+                                
+                                // Read binary data
+                                const buffer = await fs.readFile(filePath);
+                                
+                                // Extract clean strings
+                                const strings = this.extractCleanStrings(buffer);
+                                this.log(`   🔤 Extracted ${strings.length} clean strings`);
+                                
+                                if (strings.length > 0) {
+                                    // Convert to structured data
+                                    const structured = this.extractStructuredData(strings);
+                                    allStructuredData.push(...structured);
+                                    this.log(`   ✅ Found ${structured.length} structured entries`);
                                     
-                                    if (file.endsWith('.json')) {
-                                        content = await fs.readFile(filePath, 'utf8');
-                                        const jsonData = JSON.parse(content);
-                                        
-                                        // Look for workflow-like data
-                                        if (this.containsWorkflowData(jsonData)) {
-                                            const extracted = this.extractFromJSON(jsonData);
-                                            workflowData.push(...extracted);
-                                            this.log(`✅ Extracted workflow data from ${file}`);
-                                        }
-                                    } else {
-                                        // Try reading as text - be more permissive for .log files
-                                        try {
-                                            content = await fs.readFile(filePath, 'utf8');
-                                            
-                                            // For .log files, try to extract even if partially readable
-                                            if (file.endsWith('.log') || content.includes('workflow') || content.includes('trigger') || content.includes('typing')) {
-                                                this.log(`📄 Processing log file: ${file} (${stats.size} bytes)`);
-                                                
-                                                // Split content and process line by line for better filtering
-                                                const lines = content.split('\n');
-                                                let validLines = [];
-                                                
-                                                for (const line of lines) {
-                                                    const trimmedLine = line.trim();
-                                                    if (trimmedLine.length > 0 && this.isValidLogEntry(trimmedLine)) {
-                                                        validLines.push(trimmedLine);
-                                                    }
-                                                }
-                                                
-                                                if (validLines.length > 0) {
-                                                    // Create clean content from valid lines
-                                                    const cleanContent = validLines.join('\n');
-                                                    const extracted = this.extractFromText(cleanContent, file);
-                                                    workflowData.push(...extracted);
-                                                    this.log(`✅ Extracted ${validLines.length} valid log entries from ${file}`);
-                                                } else {
-                                                    this.log(`⚠️ No valid log entries found in ${file}`);
-                                                }
-                                            }
-                                        } catch (textError) {
-                                            // If text reading fails, might be binary database
-                                            this.log(`📄 Binary file detected: ${file} (${stats.size} bytes)`);
-                                            
-                                            // For binary files, try to extract readable strings
-                                            const buffer = await fs.readFile(filePath);
-                                            const strings = this.extractStringsFromBuffer(buffer);
-                                            
-                                            if (strings.length > 0) {
-                                                const extracted = this.extractFromStrings(strings, file);
-                                                workflowData.push(...extracted);
-                                                this.log(`✅ Extracted ${strings.length} strings from binary file ${file}`);
-                                            }
-                                        }
+                                    // Debug: show sample strings
+                                    if (strings.length > 0) {
+                                        this.log(`   📝 Sample: "${strings[0].substring(0, 50)}..."`);
                                     }
                                 }
                             } catch (error) {
-                                this.log(`⚠️ Could not process ${file}: ${error.message}`);
+                                this.log(`   ⚠️ Could not process ${file}: ${error.message}`);
                             }
                         }
                     }
@@ -180,251 +341,7 @@ class SimpleAutomaExtractor {
             }
         }
         
-        return workflowData;
-    }
-
-    containsWorkflowData(data) {
-        const dataStr = JSON.stringify(data).toLowerCase();
-        return dataStr.includes('workflow') || 
-               dataStr.includes('trigger') || 
-               dataStr.includes('typing') ||
-               dataStr.includes('click') ||
-               dataStr.includes('automa');
-    }
-
-    isReadableText(text) {
-        if (!text || typeof text !== 'string') return false;
-        
-        // For small strings, be more lenient
-        if (text.length < 50) {
-            // Just check for excessive null characters
-            const nullCount = (text.match(/\u0000/g) || []).length;
-            return nullCount < text.length * 0.5; // Less than 50% null characters
-        }
-        
-        // Check for null characters or other binary indicators
-        const nullCount = (text.match(/\u0000/g) || []).length;
-        const nonPrintableCount = (text.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g) || []).length;
-        
-        // Check if text contains mostly readable characters
-        const readableChars = text.replace(/[^\x20-\x7E\n\r\t]/g, '').length;
-        const totalChars = text.length;
-        
-        if (totalChars === 0) return false;
-        
-        // More lenient for log files - allow more special characters
-        const readableRatio = readableChars / totalChars;
-        const nullRatio = nullCount / totalChars;
-        
-        // Must be at least 40% readable characters and less than 30% null characters
-        return readableRatio > 0.4 && nullRatio < 0.3;
-    }
-
-    isValidLogEntry(text) {
-        if (!text || typeof text !== 'string' || text.trim().length === 0) return false;
-        
-        // More flexible patterns for Automa logs
-        const logPatterns = [
-            /\d{1,2}:\d{2}:\d{2}/,  // Time pattern (23:05:31)
-            /trigger/i,
-            /click/i,
-            /tab/i,
-            /type/i,
-            /typing/i,
-            /navigate/i,
-            /wait/i,
-            /scroll/i,
-            /workflow/i,
-            /success/i,
-            /failed/i,
-            /error/i,
-            /completed/i,
-            /started/i
-        ];
-        
-        // Check if text contains at least one log-like pattern
-        const hasLogPattern = logPatterns.some(pattern => pattern.test(text));
-        
-        // Also check for basic readability
-        const hasBasicText = /[a-zA-Z]{3,}/.test(text); // At least one word with 3+ letters
-        
-        return hasLogPattern && hasBasicText;
-    }
-
-    extractFromJSON(data) {
-        const results = [];
-        
-        // Recursive function to find workflow data
-        const findWorkflows = (obj, parentKey = '') => {
-            if (typeof obj === 'object' && obj !== null) {
-                if (Array.isArray(obj)) {
-                    obj.forEach((item, index) => findWorkflows(item, `${parentKey}[${index}]`));
-                } else {
-                    Object.keys(obj).forEach(key => {
-                        if (key.toLowerCase().includes('workflow') || 
-                            key.toLowerCase().includes('log') ||
-                            key.toLowerCase().includes('name')) {
-                            
-                            if (typeof obj[key] === 'string' && 
-                                obj[key].length > 0 && 
-                                this.isValidLogEntry(obj[key])) {
-                                
-                                results.push({
-                                    workflow: key.includes('name') ? obj[key] : parentKey || 'Unknown',
-                                    log: this.makeHumanReadable(obj[key])
-                                });
-                            }
-                        }
-                        findWorkflows(obj[key], key);
-                    });
-                }
-            }
-        };
-        
-        findWorkflows(data);
-        return results;
-    }
-
-    extractFromText(content, filename) {
-        const results = [];
-        
-        const lines = content.split('\n');
-        let currentWorkflow = filename.replace(/\.[^/.]+$/, ""); // Remove extension
-        
-        for (const line of lines) {
-            const trimmedLine = line.trim();
-            if (trimmedLine.length === 0) continue;
-            
-            // Look for workflow name patterns
-            if (trimmedLine.toLowerCase().includes('workflow') && trimmedLine.includes(':')) {
-                const parts = trimmedLine.split(':');
-                if (parts.length > 1) {
-                    const potentialName = parts[1].trim();
-                    if (this.isReadableText(potentialName)) {
-                        currentWorkflow = potentialName;
-                    }
-                }
-            }
-            
-            // Look for log entries - be more permissive
-            if (this.isValidLogEntry(trimmedLine)) {
-                results.push({
-                    workflow: currentWorkflow,
-                    log: this.makeHumanReadable(trimmedLine)
-                });
-            }
-        }
-        
-        return results;
-    }
-
-    makeHumanReadable(logEntry) {
-        let readable = logEntry;
-        
-        // Remove technical symbols and clean up
-        readable = readable.replace(/^\d{2}:\d{2}:\d{2}\s*\(\d+s?\)\s*/, ''); // Remove timestamp (23:05:31 (0s))
-        readable = readable.replace(/[✓❌⚠️]/g, ''); // Remove status symbols
-        readable = readable.trim();
-        
-        // Convert actions to human readable format
-        const actionMap = {
-            'Trigger': 'Started workflow',
-            'New tab': 'Opened new browser tab',
-            'Click element': 'Clicked on page element',
-            'Type text': 'Typed text',
-            'typing': 'Typed text',
-            'Navigate': 'Navigated to page',
-            'Wait': 'Waited',
-            'Scroll': 'Scrolled page',
-            'Take screenshot': 'Took screenshot',
-            'Close tab': 'Closed browser tab',
-            'Reload': 'Refreshed page',
-            'Go back': 'Went back in browser',
-            'Go forward': 'Went forward in browser'
-        };
-        
-        // Replace known actions
-        for (const [technical, human] of Object.entries(actionMap)) {
-            if (readable.toLowerCase().includes(technical.toLowerCase())) {
-                readable = readable.replace(new RegExp(technical, 'gi'), human);
-                break;
-            }
-        }
-        
-        // Clean up any remaining symbols
-        readable = readable.replace(/^\s*[^\w\s]\s*/, ''); // Remove leading symbols
-        readable = readable.trim();
-        
-        // Capitalize first letter
-        if (readable.length > 0) {
-            readable = readable.charAt(0).toUpperCase() + readable.slice(1);
-        }
-        
-        // Handle error messages
-        if (logEntry.includes('❌') || logEntry.toLowerCase().includes('error') || logEntry.toLowerCase().includes('failed')) {
-            readable = 'Failed: ' + readable;
-        } else if (logEntry.includes('✓')) {
-            readable = 'Success: ' + readable;
-        } else if (logEntry.includes('⚠️')) {
-            readable = 'Warning: ' + readable;
-        }
-        
-        return readable || logEntry; // Fallback to original if something goes wrong
-    }
-
-    extractStringsFromBuffer(buffer) {
-        const strings = [];
-        let currentString = '';
-        
-        for (let i = 0; i < buffer.length; i++) {
-            const byte = buffer[i];
-            
-            // Printable ASCII characters
-            if (byte >= 32 && byte <= 126) {
-                currentString += String.fromCharCode(byte);
-            } else {
-                if (currentString.length > 10 && this.isReadableText(currentString)) { // Only keep longer readable strings
-                    strings.push(currentString);
-                }
-                currentString = '';
-            }
-        }
-        
-        // Add the last string if it exists
-        if (currentString.length > 10 && this.isReadableText(currentString)) {
-            strings.push(currentString);
-        }
-        
-        // Only return strings that look like actual logs
-        return strings.filter(s => this.isValidLogEntry(s));
-    }
-
-    extractFromStrings(strings, filename) {
-        const results = [];
-        let currentWorkflow = filename.replace(/\.[^/.]+$/, "");
-        
-        for (const str of strings) {
-            // Skip corrupted strings
-            if (!this.isReadableText(str) || !this.isValidLogEntry(str)) {
-                continue;
-            }
-            
-            if (str.toLowerCase().includes('workflow') && str.includes('_')) {
-                // Might be a workflow name
-                if (this.isReadableText(str)) {
-                    currentWorkflow = str;
-                }
-            }
-            
-            if (this.isValidLogEntry(str)) {
-                results.push({
-                    workflow: currentWorkflow,
-                    log: this.makeHumanReadable(str)
-                });
-            }
-        }
-        
-        return results;
+        return allStructuredData;
     }
 
     async saveToCSV(workflowData) {
@@ -435,10 +352,18 @@ class SimpleAutomaExtractor {
 
         await fs.ensureDir(this.outputDir);
         
+        // Convert to human-readable format
+        const readableData = this.convertToHumanReadable(workflowData);
+        
+        if (readableData.length === 0) {
+            this.log('⚠️ No readable data could be extracted');
+            return null;
+        }
+
         // Group by workflow name
         const workflows = {};
-        workflowData.forEach(item => {
-            const workflowName = item.workflow || 'Unknown';
+        readableData.forEach(item => {
+            const workflowName = item.workflow || 'Unknown Workflow';
             if (!workflows[workflowName]) {
                 workflows[workflowName] = [];
             }
@@ -446,36 +371,72 @@ class SimpleAutomaExtractor {
         });
 
         const savedFiles = [];
+        const timestamp = new Date().toISOString().split('T')[0];
 
+        // Save individual workflow files
         for (const [workflowName, logs] of Object.entries(workflows)) {
-            // Clean workflow name for filename
-            const cleanName = workflowName.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
-            const filename = `${cleanName}.csv`;
+            const cleanName = workflowName.replace(/[^a-zA-Z0-9_\s-]/g, '_').substring(0, 30);
+            const filename = `${cleanName}_${timestamp}.csv`;
             const filepath = path.join(this.outputDir, filename);
             
-            // Create CSV content
-            let csvContent = 'workflow_name,log_entry\n';
+            // Create CSV content with better formatting
+            let csvContent = 'timestamp,workflow_name,action,status\n';
             
-            logs.forEach(log => {
-                // Escape quotes and wrap in quotes if needed
+            logs.forEach((log, index) => {
                 const escapedLog = log.replace(/"/g, '""');
                 const needsQuotes = log.includes(',') || log.includes('\n') || log.includes('"');
                 const logValue = needsQuotes ? `"${escapedLog}"` : escapedLog;
                 
-                csvContent += `"${workflowName}",${logValue}\n`;
+                // Try to extract action and status from log
+                const statusMatch = log.match(/\b(success|failed|error|completed|started)\b/i);
+                const status = statusMatch ? statusMatch[0] : 'info';
+                
+                const actionMatch = log.match(/\b(clicked|typed|navigated|waited|scrolled|started|opened)\b/i);
+                const action = actionMatch ? actionMatch[0] : 'action';
+                
+                const timestamp = new Date().toISOString();
+                
+                csvContent += `"${timestamp}","${workflowName}","${action}","${status}"\n`;
             });
             
             await fs.writeFile(filepath, csvContent, 'utf8');
             savedFiles.push(filepath);
             
-            this.log(`✅ Saved ${logs.length} log entries to: ${filename}`);
+            this.log(`✅ Saved ${logs.length} entries to: ${filename}`);
         }
+
+        // Also create a combined file
+        const combinedFilename = `all_workflows_${timestamp}.csv`;
+        const combinedFilepath = path.join(this.outputDir, combinedFilename);
+        
+        let combinedContent = 'timestamp,workflow_name,log_entry,action,status\n';
+        
+        readableData.forEach(item => {
+            const escapedLog = item.log.replace(/"/g, '""');
+            const needsQuotes = item.log.includes(',') || item.log.includes('\n') || item.log.includes('"');
+            const logValue = needsQuotes ? `"${escapedLog}"` : escapedLog;
+            
+            const statusMatch = item.log.match(/\b(success|failed|error|completed|started)\b/i);
+            const status = statusMatch ? statusMatch[0] : 'info';
+            
+            const actionMatch = item.log.match(/\b(clicked|typed|navigated|waited|scrolled|started|opened)\b/i);
+            const action = actionMatch ? actionMatch[0] : 'action';
+            
+            const timestamp = new Date().toISOString();
+            
+            combinedContent += `"${timestamp}","${item.workflow}",${logValue},"${action}","${status}"\n`;
+        });
+        
+        await fs.writeFile(combinedFilepath, combinedContent, 'utf8');
+        savedFiles.push(combinedFilepath);
+        
+        this.log(`✅ Saved combined file: ${combinedFilename}`);
 
         return savedFiles;
     }
 
     async run() {
-        this.log('🚀 Starting Simple Automa CSV Extraction...');
+        this.log('🚀 Starting Improved LevelDB Automa Extraction...');
         
         try {
             // Find Chrome profiles
@@ -500,26 +461,24 @@ class SimpleAutomaExtractor {
             }
 
             // Extract workflow data
-            const workflowData = await this.extractWorkflowData(automaDirs);
+            const structuredData = await this.extractWorkflowData(automaDirs);
             
-            if (workflowData.length === 0) {
-                this.log('❌ No workflow data found in any extension databases');
+            if (structuredData.length === 0) {
+                this.log('❌ No structured workflow data found');
                 return;
             }
 
             // Save to CSV
-            const savedFiles = await this.saveToCSV(workflowData);
+            const savedFiles = await this.saveToCSV(structuredData);
             
             this.log('\n✅ Extraction completed!');
-            this.log(`📊 Found ${workflowData.length} log entries`);
+            this.log(`📊 Found ${structuredData.length} structured entries`);
             if (savedFiles) {
                 this.log(`💾 Saved to ${savedFiles.length} CSV file(s):`);
                 savedFiles.forEach(file => this.log(`   - ${path.basename(file)}`));
-                this.log('\n📄 Example of human-readable format:');
-                this.log('   workflow_name,log_entry');
-                this.log('   typing_five_5,"Success: Started workflow"');
-                this.log('   typing_five_5,"Success: Opened new browser tab"');
-                this.log('   typing_five_5,"Failed: Clicked on page element"');
+                this.log('\n📄 Clean CSV format with columns:');
+                this.log('   timestamp,workflow_name,action,status');
+                this.log('   "2025-08-16T15:30:00Z","Typing Five 5","Started","success"');
             }
             
             return savedFiles;
@@ -533,7 +492,7 @@ class SimpleAutomaExtractor {
 
 // Run the extraction
 async function extractAutomaLogs() {
-    const extractor = new SimpleAutomaExtractor();
+    const extractor = new ImprovedLevelDBExtractor();
     return await extractor.run();
 }
 
@@ -545,4 +504,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { SimpleAutomaExtractor, extractAutomaLogs };
+module.exports = { ImprovedLevelDBExtractor, extractAutomaLogs };
